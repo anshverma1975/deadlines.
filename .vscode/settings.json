@@ -11,7 +11,9 @@
         ".vscode": true,
         "package-lock.json": true,
         "package.json": true,
-        "vercel.json": true
+        "vercel.json": true,
+        "favicon.svg": true,
+        ".gitignore": true
     },
     "hide-files.files": [
         "node_modules",
@@ -20,6 +22,8 @@
         ".vscode",
         "package-lock.json",
         "package.json",
-        "vercel.json"
+        "vercel.json",
+        "favicon.svg",
+        ".gitignore"
     ]
 }
