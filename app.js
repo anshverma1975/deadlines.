@@ -8,8 +8,7 @@ if (window.electronApp) {
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 const CLIENT_ID = '977999849446-j8u796jl68jk0hac49v26oisqs25160h.apps.googleusercontent.com';
-const SCOPES = 'https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile';
-const API_KEY = ''; // optional, not needed for OAuth flow
+const SCOPES = 'openid https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile';const API_KEY = ''; // optional, not needed for OAuth flow
 
 const SUBJECT_COLORS = ['#FF6B6B','#4ECDC4','#FFD93D','#C77DFF','#74B3CE','#F4845F','#A8D8A8','#FF9A9E'];
 
@@ -475,6 +474,9 @@ function handleSignIn() {
       access_type:   'offline',
       prompt:        'consent',
     });
+
+    const url = `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
+    console.log('OAuth URL:', url);
     window.electronApp.openOAuth(
       `https://accounts.google.com/o/oauth2/v2/auth?${params}`
     );

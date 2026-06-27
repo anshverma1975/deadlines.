@@ -4,7 +4,22 @@
         "**/.svn": true,
         "**/.hg": true,
         "**/.DS_Store": true,
-        "**/Thumbs.db": true
+        "**/Thumbs.db": true,
+        "node_modules": true,
+        "assets": true,
+        "api/auth": true,
+        ".vscode": true,
+        "package-lock.json": true,
+        "package.json": true,
+        "vercel.json": true
     },
-    "hide-files.files": []
+    "hide-files.files": [
+        "node_modules",
+        "assets",
+        "api/auth",
+        ".vscode",
+        "package-lock.json",
+        "package.json",
+        "vercel.json"
+    ]
 }
