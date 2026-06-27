@@ -269,6 +269,120 @@ body::after {
   overflow: hidden;
 }
 
+/* ─── Login Screen ───────────────────────────────────────────────────────── */
+@keyframes login-rise {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.97);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes login-fade-out {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+    pointer-events: none;
+  }
+}
+
+.login-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.login-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.25rem;
+  background: rgba(12, 18, 14, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 24px;
+  padding: 3rem 2.5rem 2.5rem;
+  width: 340px;
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  box-shadow: 0 32px 80px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  animation: login-rise 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+  text-align: center;
+}
+
+.login-brand {
+  font-family: 'Lora', serif;
+  font-style: italic;
+  font-size: 2rem;
+  color: var(--text);
+  letter-spacing: -0.02em;
+}
+
+.login-sub {
+  font-size: 13px;
+  color: var(--text-muted);
+  font-weight: 300;
+  margin-top: -0.5rem;
+}
+
+.login-google-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  color: var(--text);
+  cursor: pointer;
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  font-weight: 400;
+  padding: 11px 20px;
+  width: 100%;
+  justify-content: center;
+  transition: background 0.2s, border-color 0.2s, transform 0.2s, box-shadow 0.2s;
+  margin-top: 0.5rem;
+}
+
+.login-google-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+.login-google-btn:active {
+  transform: translateY(0);
+}
+
+.login-hint {
+  font-size: 11px;
+  color: var(--text-dim);
+  font-weight: 300;
+  line-height: 1.6;
+  max-width: 240px;
+}
+
+.login-screen.fade-out {
+  animation: login-fade-out 0.4s ease forwards;
+}
+
+/* ─── App shell ──────────────────────────────────────────────────────────── */
+.app-shell {
+  height: 100vh;
+  position: relative;
+  z-index: 1;
+}
+
 /* App layout */
 .app {
   display: flex;
@@ -276,6 +390,7 @@ body::after {
   position: relative;
   z-index: 1;
 }
+
 
 /* Left panel */
 .left-panel {
@@ -663,69 +778,34 @@ body::after {
   vector-effect: non-scaling-stroke;
 }
 
-/* Each stroke is 3 layers: bright head → mid body → faded tail.
-   All share the same dasharray so they form one continuous fading stroke.
-   stroke-dashoffset is set by JS so every card is perfectly in sync.   */
+/* Each stroke = 2 layers: faded tail + bright head.
+   Both share the same dasharray; tail is shifted behind via JS offset.  */
 
-/* Stroke A — layers */
-.task-stroke-a-tail {
-  fill: none;
-  stroke: #c87800;
-  stroke-width: 2px;
-  stroke-linecap: round;
-  opacity: 0.18;
-}
-
-.task-stroke-a-body {
-  fill: none;
-  stroke: #e8a838;
-  stroke-width: 2px;
-  stroke-linecap: round;
-  opacity: 0.55;
-}
-
-.task-stroke-a-head {
-  fill: none;
-  stroke: #fff4c2;
-  stroke-width: 2.5px;
-  stroke-linecap: round;
-  opacity: 1;
-}
-
-/* Stroke B — offset by half the cycle, same layers */
+.task-stroke-a-tail,
 .task-stroke-b-tail {
   fill: none;
   stroke: #c87800;
   stroke-width: 2px;
   stroke-linecap: round;
-  opacity: 0.18;
+  opacity: 0.22;
 }
 
-.task-stroke-b-body {
-  fill: none;
-  stroke: #e8a838;
-  stroke-width: 2px;
-  stroke-linecap: round;
-  opacity: 0.55;
-}
-
+.task-stroke-a-head,
 .task-stroke-b-head {
   fill: none;
-  stroke: #fff4c2;
+  stroke: #ffd96a;
   stroke-width: 2.5px;
   stroke-linecap: round;
   opacity: 1;
+  filter: drop-shadow(0 0 3px rgba(255, 210, 80, 0.7));
 }
 
-/* All 6 elements share the stroke length/gap and vector effect */
 .task-stroke-a-tail,
-.task-stroke-a-body,
 .task-stroke-a-head,
 .task-stroke-b-tail,
-.task-stroke-b-body,
 .task-stroke-b-head {
-  stroke-dasharray: 90 310;
-  /* stroke length 90, gap 310 (perimeter ≈ 400) */
+  stroke-dasharray: 60 340;
+  /* 60px stroke, 340px gap — perimeter total = 400 */
   vector-effect: non-scaling-stroke;
 }
 

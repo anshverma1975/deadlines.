@@ -22,24 +22,43 @@ let subjectColorIndex = 0;
 let selectedDate = new Date();
 let calViewDate = new Date();
 
+// ─── Login / App shell ────────────────────────────────────────────────────────
+function showApp() {
+  const login = document.getElementById('loginScreen');
+  const shell = document.getElementById('appShell');
+  login.classList.add('fade-out');
+  setTimeout(() => { login.style.display = 'none'; }, 400);
+  shell.style.display = 'block';
+}
+
+function showLogin() {
+  document.getElementById('loginScreen').style.display = 'flex';
+  document.getElementById('appShell').style.display = 'none';
+}
+
 // ─── Init ─────────────────────────────────────────────────────────────────────
 window.addEventListener('load', () => {
   renderCalendar();
   selectDate(new Date());
   requestNotificationPermission();
 
+  // Wire login button
+  document.getElementById('loginGoogleBtn').addEventListener('click', handleSignIn);
+
   const savedToken = localStorage.getItem('gcal_token');
   if (savedToken) {
     accessToken = savedToken;
-    fetchUserInfo().catch(() => {
-      // Token may be expired — silently re-auth if user had signed in before
-      if (localStorage.getItem('gcal_user_email')) {
-        silentSignIn();
-      } else {
-        localStorage.removeItem('gcal_token');
-      }
-    });
+    fetchUserInfo()
+      .then(() => showApp())
+      .catch(() => {
+        if (localStorage.getItem('gcal_user_email')) {
+          silentSignIn();
+        } else {
+          localStorage.removeItem('gcal_token');
+        }
+      });
   }
+  // If no token, login screen stays visible (default)
 });
 
 function silentSignIn() {
@@ -53,7 +72,7 @@ function silentSignIn() {
         if (response.error) return;
         accessToken = response.access_token;
         localStorage.setItem('gcal_token', accessToken);
-        fetchUserInfo();
+        fetchUserInfo().then(() => showApp());
       }
     });
     client.requestAccessToken();
@@ -202,6 +221,7 @@ function renderTasks() {
         ${important ? '<span class="task-badge important-badge">deadline</span>' : ''}
         <span class="task-subject" style="color:${color}">${escHtml(ev.subject)}</span>
         ${ev.time ? `<span class="task-time">${ev.time}</span>` : ''}
+        <span class="task-badge">${ev.source === 'manual' ? 'manual' : 'gcal'}</span>
       </div>`;
 
     card.appendChild(bar);
@@ -216,20 +236,15 @@ function renderTasks() {
       svgEl.setAttribute('viewBox', '0 0 100 100');
       svgEl.setAttribute('preserveAspectRatio', 'none');
 
-      // rect attrs shared by all layers
       const rAttrs = { x:'0.5', y:'0.5', width:'99', height:'99', rx:'11' };
 
-      // 6 layers: stroke A (tail→body→head) + stroke B offset by 200 units
-      // tail offset is +14 ahead (longer dash = visible earlier = tail of stroke)
-      // body offset is +7 ahead
-      // head offset is 0 (front of stroke)
+      // 2 strokes × 2 layers (tail faded + head bright) = 4 elements total
+      // extra = dashoffset shift so tail sits behind head on the path
       const layers = [
-        { cls: 'task-stroke-a-tail',  extra: 14 },
-        { cls: 'task-stroke-a-body',  extra:  7 },
-        { cls: 'task-stroke-a-head',  extra:  0 },
-        { cls: 'task-stroke-b-tail',  extra: 14 + 200 },
-        { cls: 'task-stroke-b-body',  extra:  7 + 200 },
-        { cls: 'task-stroke-b-head',  extra:      200 },
+        { cls: 'task-stroke-a-tail', extra: 18 },       // stroke A tail
+        { cls: 'task-stroke-a-head', extra:  0 },       // stroke A head
+        { cls: 'task-stroke-b-tail', extra: 18 + 200 }, // stroke B tail (half-cycle behind)
+        { cls: 'task-stroke-b-head', extra:      200 }, // stroke B head
       ];
 
       const track = document.createElementNS(ns, 'rect');
@@ -423,7 +438,7 @@ function handleSignIn() {
       if (response.error) { console.error(response); return; }
       accessToken = response.access_token;
       localStorage.setItem('gcal_token', accessToken);
-      fetchUserInfo();
+      fetchUserInfo().then(() => showApp());
     }
   });
   client.requestAccessToken();
@@ -436,11 +451,9 @@ function handleSignOut() {
   allEvents = {};
   localStorage.removeItem('gcal_token');
   localStorage.removeItem('gcal_user_email');
-  document.getElementById('signinBtn').style.display = 'flex';
-  document.getElementById('signedInInfo').style.display = 'none';
-  document.getElementById('calendarToggleSection').style.display = 'none';
   renderTasks();
   renderCalendar();
+  showLogin();
 }
 
 async function fetchUserInfo() {
@@ -451,9 +464,6 @@ async function fetchUserInfo() {
   const data = await res.json();
   currentUser = data;
   if (data.email) localStorage.setItem('gcal_user_email', data.email);
-
-  document.getElementById('signinBtn').style.display = 'none';
-  document.getElementById('signedInInfo').style.display = 'block';
 
   const initials = (data.name || data.email || 'U').split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase();
   document.getElementById('userAvatar').textContent = initials;
