@@ -1,3 +1,11 @@
+// ─── Electron detection ───────────────────────────────────────────────────────
+if (window.electronApp) {
+  document.documentElement.classList.add('is-electron');
+  if (window.electronApp.platform === 'darwin') {
+    document.documentElement.classList.add('is-mac');
+  }
+}
+
 // ─── Config ───────────────────────────────────────────────────────────────────
 const CLIENT_ID = '977999849446-j8u796jl68jk0hac49v26oisqs25160h.apps.googleusercontent.com';
 const SCOPES = 'https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile';
@@ -62,6 +70,9 @@ window.addEventListener('load', () => {
 });
 
 function silentSignIn() {
+  // Silent re-auth via GIS only works in the browser.
+  // In Electron the user will just need to click sign-in again when the token expires.
+  if (window.electronApp) return;
   try {
     const client = google.accounts.oauth2.initTokenClient({
       client_id: CLIENT_ID,
@@ -430,18 +441,57 @@ function toggleCalendar(calId, visible) {
 }
 
 // ─── Google OAuth ─────────────────────────────────────────────────────────────
+
+// Called by Electron main after deadlines://auth?access_token=... comes back
+window.handleOAuthRedirect = function(url) {
+  try {
+    const queryStr = url.split('?')[1] || '';
+    const params = new URLSearchParams(queryStr);
+    const token = params.get('access_token');
+    const refresh = params.get('refresh_token');
+    const error = params.get('error');
+
+    if (error) { console.error('OAuth error:', error); return; }
+    if (!token) { console.error('No token in redirect', url); return; }
+
+    accessToken = token;
+    localStorage.setItem('gcal_token', token);
+    if (refresh) localStorage.setItem('gcal_refresh_token', refresh);
+
+    fetchUserInfo().then(() => showApp());
+  } catch(e) {
+    console.error('OAuth redirect parse error', e);
+  }
+};
+
 function handleSignIn() {
-  const client = google.accounts.oauth2.initTokenClient({
-    client_id: CLIENT_ID,
-    scope: SCOPES,
-    callback: (response) => {
-      if (response.error) { console.error(response); return; }
-      accessToken = response.access_token;
-      localStorage.setItem('gcal_token', accessToken);
-      fetchUserInfo().then(() => showApp());
-    }
-  });
-  client.requestAccessToken();
+  if (window.electronApp) {
+    // Electron: use authorization code flow via Vercel callback
+    const params = new URLSearchParams({
+      client_id:     CLIENT_ID,
+      redirect_uri:  'https://deadlines-ruby.vercel.app/api/auth/callback',
+      response_type: 'code',
+      scope:         SCOPES,
+      access_type:   'offline',
+      prompt:        'consent',
+    });
+    window.electronApp.openOAuth(
+      `https://accounts.google.com/o/oauth2/v2/auth?${params}`
+    );
+  } else {
+    // Browser: use GIS popup
+    const client = google.accounts.oauth2.initTokenClient({
+      client_id: CLIENT_ID,
+      scope: SCOPES,
+      callback: (response) => {
+        if (response.error) { console.error(response); return; }
+        accessToken = response.access_token;
+        localStorage.setItem('gcal_token', accessToken);
+        fetchUserInfo().then(() => showApp());
+      }
+    });
+    client.requestAccessToken();
+  }
 }
 
 function handleSignOut() {
@@ -547,10 +597,47 @@ async function fetchEventsForMonth(date) {
 }
 
 // ─── Notifications ────────────────────────────────────────────────────────────
+// ─── Notifications ────────────────────────────────────────────────────────────
+function sendNotification(title, body) {
+  if (window.electronApp) {
+    // Native OS notification via Electron — works even when window is minimized
+    window.electronApp.notify(title, body);
+  } else if ('Notification' in window && Notification.permission === 'granted') {
+    new Notification(title, { body });
+  }
+}
+
 function requestNotificationPermission() {
+  if (window.electronApp) return; // Electron handles this natively, no prompt needed
   if ('Notification' in window && Notification.permission === 'default') {
     Notification.requestPermission();
   }
+}
+
+function scheduleNotifications(events) {
+  const now = Date.now();
+
+  events.forEach(ev => {
+    if (!ev.start?.dateTime) return; // skip all-day events
+
+    const eventTime = new Date(ev.start.dateTime).getTime();
+    const oneHourBefore = eventTime - 60 * 60 * 1000;
+    const title = ev.summary || 'Event';
+
+    // 1 hour before
+    if (oneHourBefore > now) {
+      setTimeout(() => {
+        sendNotification(`⏰ in 1 hour`, title);
+      }, oneHourBefore - now);
+    }
+
+    // At event time
+    if (eventTime > now) {
+      setTimeout(() => {
+        sendNotification(`🔔 starting now`, title);
+      }, eventTime - now);
+    }
+  });
 }
 
 function scheduleNotifications() {

@@ -1,53 +1,72 @@
-# Deadline Dashboard
-> Because for some reason , no other app out there understands what a college student wants
+# deadlines. — desktop app
 
-I was so tired of calendar apps. Every single one shows events in this annoying hourly column format. 12-1 PM, 1-2 PM, all these time slots I don't care about. I'm a college student. I don't need to know what's happening at 3 PM. I need to know what assignments are due this week. What deadlines I'm forgetting. Which subjects I've been ignoring.
+A frameless Electron wrapper around the deadlines. web app.
 
-So I built this.
+## Setup
 
-It's simple. Sign in with Google, it pulls your calendar events, and shows you everything for any day you click on. That's it !
-
-I have 4-8 subjects each semester. This helps me keep track without losing my mind in Google calendar
-
-## Features
-
-- Google Calendar sync
-- Auto detects subjects from event titles
-- Color coded by subject
-- Daily task view
-- Manual task adding
-- Past dates dimmed
-- Browser notifications
-- Dark mode
-
-- ## Tech Stack
-
-Next.js, TypeScript, Tailwind CSS, Google Calendar API
-
-# How to use it
 ```bash
-git clone https://github.com/anshverma1975/deadlines.git
-cd deadlines
 npm install
 ```
 
-Create a .env.local file:
+## Run locally
 
-```text
-NEXT_PUBLIC_GOOGLE_CLIENT_ID=your_client_id_here
+```bash
+npm start
 ```
-Then:
+
+For dev tools in the View menu:
 
 ```bash
 npm run dev
 ```
 
-Open localhost:3000 and sign in.
+## Build a distributable
 
-# Google Cloud setup
-You'll need to enable Calendar API in Google Cloud Console and create OAuth credentials. Add localhost and your Vercel domain to authorized origins. Copy the client ID. That's it.
+```bash
+# macOS (.dmg — universal arm64 + x64)
+npm run build:mac
 
+# Windows (.exe installer)
+npm run build:win
 
-<div align="center">
-  <img src="https://api.visitorbadge.io/api/visitors?path=anshverma1975%2Fdeadlines&label=Visitors&countColor=%23263759" />
-</div>
+# Linux (.AppImage + .deb)
+npm run build:linux
+```
+
+Built apps appear in the `dist/` folder.
+
+## Adding a real icon
+
+Replace the placeholder files in `assets/` with your actual icons:
+
+- `assets/icon.png`  — 1024×1024 PNG (used for Linux + Windows)
+- `assets/icon.icns` — macOS icon set (generate from the PNG with `iconutil`)
+- `assets/icon.ico`  — Windows icon (generate from the PNG with ImageMagick)
+
+### Quick macOS icon generation
+
+```bash
+mkdir icon.iconset
+sips -z 16 16     assets/icon.png --out icon.iconset/icon_16x16.png
+sips -z 32 32     assets/icon.png --out icon.iconset/icon_16x16@2x.png
+sips -z 32 32     assets/icon.png --out icon.iconset/icon_32x32.png
+sips -z 64 64     assets/icon.png --out icon.iconset/icon_32x32@2x.png
+sips -z 128 128   assets/icon.png --out icon.iconset/icon_128x128.png
+sips -z 256 256   assets/icon.png --out icon.iconset/icon_128x128@2x.png
+sips -z 256 256   assets/icon.png --out icon.iconset/icon_256x256.png
+sips -z 512 512   assets/icon.png --out icon.iconset/icon_256x256@2x.png
+sips -z 512 512   assets/icon.png --out icon.iconset/icon_512x512.png
+cp assets/icon.png icon.iconset/icon_512x512@2x.png
+iconutil -c icns icon.iconset -o assets/icon.icns
+rm -rf icon.iconset
+```
+
+## Google OAuth note
+
+Google Identity Services' popup flow works inside Electron's BrowserWindow
+as long as `localhost` (or your deployed domain) is in the Authorized
+JavaScript Origins in Google Cloud Console.
+
+For the packaged app you'll also need to add the `file://` origin, or better —
+deploy the app to Vercel and point `win.loadURL('https://your-app.vercel.app')`
+instead of `win.loadFile(...)` in `electron/main.js`.
