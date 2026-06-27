@@ -28,12 +28,39 @@ window.addEventListener('load', () => {
   selectDate(new Date());
   requestNotificationPermission();
 
-  const savedToken = sessionStorage.getItem('gcal_token');
+  const savedToken = localStorage.getItem('gcal_token');
   if (savedToken) {
     accessToken = savedToken;
-    fetchUserInfo();
+    fetchUserInfo().catch(() => {
+      // Token may be expired — silently re-auth if user had signed in before
+      if (localStorage.getItem('gcal_user_email')) {
+        silentSignIn();
+      } else {
+        localStorage.removeItem('gcal_token');
+      }
+    });
   }
 });
+
+function silentSignIn() {
+  try {
+    const client = google.accounts.oauth2.initTokenClient({
+      client_id: CLIENT_ID,
+      scope: SCOPES,
+      prompt: '',
+      hint: localStorage.getItem('gcal_user_email') || '',
+      callback: (response) => {
+        if (response.error) return;
+        accessToken = response.access_token;
+        localStorage.setItem('gcal_token', accessToken);
+        fetchUserInfo();
+      }
+    });
+    client.requestAccessToken();
+  } catch (e) {
+    console.log('Silent sign-in unavailable');
+  }
+}
 
 // ─── Calendar UI ──────────────────────────────────────────────────────────────
 function renderCalendar() {
@@ -175,12 +202,52 @@ function renderTasks() {
         ${important ? '<span class="task-badge important-badge">deadline</span>' : ''}
         <span class="task-subject" style="color:${color}">${escHtml(ev.subject)}</span>
         ${ev.time ? `<span class="task-time">${ev.time}</span>` : ''}
-        <span class="task-badge">${ev.source === 'manual' ? 'manual' : 'gcal'}</span>
       </div>`;
 
     card.appendChild(bar);
     card.appendChild(check);
     card.appendChild(body);
+
+    if (important) {
+      const ns = 'http://www.w3.org/2000/svg';
+      const svgEl = document.createElementNS(ns, 'svg');
+      svgEl.setAttribute('class', 'task-border-beam');
+      svgEl.setAttribute('aria-hidden', 'true');
+      svgEl.setAttribute('viewBox', '0 0 100 100');
+      svgEl.setAttribute('preserveAspectRatio', 'none');
+
+      // rect attrs shared by all layers
+      const rAttrs = { x:'0.5', y:'0.5', width:'99', height:'99', rx:'11' };
+
+      // 6 layers: stroke A (tail→body→head) + stroke B offset by 200 units
+      // tail offset is +14 ahead (longer dash = visible earlier = tail of stroke)
+      // body offset is +7 ahead
+      // head offset is 0 (front of stroke)
+      const layers = [
+        { cls: 'task-stroke-a-tail',  extra: 14 },
+        { cls: 'task-stroke-a-body',  extra:  7 },
+        { cls: 'task-stroke-a-head',  extra:  0 },
+        { cls: 'task-stroke-b-tail',  extra: 14 + 200 },
+        { cls: 'task-stroke-b-body',  extra:  7 + 200 },
+        { cls: 'task-stroke-b-head',  extra:      200 },
+      ];
+
+      const track = document.createElementNS(ns, 'rect');
+      track.setAttribute('class', 'task-border-track');
+      Object.entries(rAttrs).forEach(([k,v]) => track.setAttribute(k,v));
+      svgEl.appendChild(track);
+
+      layers.forEach(({ cls, extra }) => {
+        const el = document.createElementNS(ns, 'rect');
+        el.setAttribute('class', cls);
+        el.dataset.extra = extra;
+        Object.entries(rAttrs).forEach(([k,v]) => el.setAttribute(k,v));
+        svgEl.appendChild(el);
+      });
+
+      card.appendChild(svgEl);
+    }
+
     area.appendChild(card);
   });
 }
@@ -355,7 +422,7 @@ function handleSignIn() {
     callback: (response) => {
       if (response.error) { console.error(response); return; }
       accessToken = response.access_token;
-      sessionStorage.setItem('gcal_token', accessToken);
+      localStorage.setItem('gcal_token', accessToken);
       fetchUserInfo();
     }
   });
@@ -367,7 +434,8 @@ function handleSignOut() {
   currentUser = null;
   allCalendars = [];
   allEvents = {};
-  sessionStorage.removeItem('gcal_token');
+  localStorage.removeItem('gcal_token');
+  localStorage.removeItem('gcal_user_email');
   document.getElementById('signinBtn').style.display = 'flex';
   document.getElementById('signedInInfo').style.display = 'none';
   document.getElementById('calendarToggleSection').style.display = 'none';
@@ -376,24 +444,22 @@ function handleSignOut() {
 }
 
 async function fetchUserInfo() {
-  try {
-    const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-      headers: { Authorization: `Bearer ${accessToken}` }
-    });
-    const data = await res.json();
-    currentUser = data;
+  const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+    headers: { Authorization: `Bearer ${accessToken}` }
+  });
+  if (!res.ok) throw new Error('token_expired');
+  const data = await res.json();
+  currentUser = data;
+  if (data.email) localStorage.setItem('gcal_user_email', data.email);
 
-    document.getElementById('signinBtn').style.display = 'none';
-    document.getElementById('signedInInfo').style.display = 'block';
+  document.getElementById('signinBtn').style.display = 'none';
+  document.getElementById('signedInInfo').style.display = 'block';
 
-    const initials = (data.name || data.email || 'U').split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase();
-    document.getElementById('userAvatar').textContent = initials;
-    document.getElementById('userName').textContent = data.name || data.email;
+  const initials = (data.name || data.email || 'U').split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase();
+  document.getElementById('userAvatar').textContent = initials;
+  document.getElementById('userName').textContent = data.name || data.email;
 
-    await fetchCalendars();
-  } catch (e) {
-    console.error('Failed to fetch user info', e);
-  }
+  await fetchCalendars();
 }
 
 async function fetchCalendars() {
@@ -542,7 +608,27 @@ function escHtml(str) {
     .replace(/"/g,'&quot;');
 }
 
-// Keyboard support
+// ─── Synced border animation ───────────────────────────────────────────────────
+// One rAF loop drives ALL important-card stroke offsets from a single clock,
+// so every card is perfectly in sync regardless of when it was rendered.
+;(function syncBorderStrokes() {
+  const CYCLE   = 4000;   // ms for one full perimeter loop
+  const PERIMETER = 400;  // must match dasharray total (90 + 310)
+
+  function tick(ts) {
+    const progress = (ts % CYCLE) / CYCLE;          // 0 → 1
+    const base = -(progress * PERIMETER);            // 0 → -400
+
+    document.querySelectorAll('.task-border-beam rect[data-extra]').forEach(el => {
+      const extra = parseFloat(el.dataset.extra);
+      el.style.strokeDashoffset = (base - extra) + 'px';
+    });
+
+    requestAnimationFrame(tick);
+  }
+
+  requestAnimationFrame(tick);
+})();
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
     closeSettings();
