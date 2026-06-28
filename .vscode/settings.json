@@ -7,23 +7,19 @@
         "**/Thumbs.db": true,
         "node_modules": true,
         "assets": true,
-        "api/auth": true,
         ".vscode": true,
         "package-lock.json": true,
         "package.json": true,
         "vercel.json": true,
-        "favicon.svg": true,
-        ".gitignore": true
+        "favicon.svg": true
     },
     "hide-files.files": [
         "node_modules",
         "assets",
-        "api/auth",
         ".vscode",
         "package-lock.json",
         "package.json",
         "vercel.json",
-        "favicon.svg",
-        ".gitignore"
+        "favicon.svg"
     ]
 }

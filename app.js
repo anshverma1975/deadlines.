@@ -48,8 +48,6 @@ window.addEventListener('load', () => {
   renderCalendar();
   selectDate(new Date());
   requestNotificationPermission();
-
-  // Wire login button
   document.getElementById('loginGoogleBtn').addEventListener('click', handleSignIn);
 
   const savedToken = localStorage.getItem('gcal_token');
@@ -57,15 +55,16 @@ window.addEventListener('load', () => {
     accessToken = savedToken;
     fetchUserInfo()
       .then(() => showApp())
-      .catch(() => {
-        if (localStorage.getItem('gcal_user_email')) {
-          silentSignIn();
+      .catch(async () => {
+        // Token expired — try refreshing silently
+        const refreshed = await refreshAccessToken();
+        if (refreshed) {
+          fetchUserInfo().then(() => showApp());
         } else {
           localStorage.removeItem('gcal_token');
         }
       });
   }
-  // If no token, login screen stays visible (default)
 });
 
 function silentSignIn() {
@@ -544,6 +543,28 @@ async function fetchCalendars() {
     await fetchEventsForMonth(calViewDate);
   } catch (e) {
     console.error('Failed to fetch calendars', e);
+  }
+}
+
+async function refreshAccessToken() {
+  const refreshToken = localStorage.getItem('gcal_refresh_token');
+  if (!refreshToken) return false;
+
+  try {
+    const res = await fetch('https://deadlines-ruby.vercel.app/api/auth/refresh', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    });
+    const data = await res.json();
+    if (data.access_token) {
+      accessToken = data.access_token;
+      localStorage.setItem('gcal_token', data.access_token);
+      return true;
+    }
+    return false;
+  } catch (e) {
+    return false;
   }
 }
 
